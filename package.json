@@ -1,0 +1,20 @@
+{
+	"name": "xcomutilsnode",
+	"type": "module",
+	"version": "1.0.0",
+	"description": "prototype utils for xcom editor",
+	"main": "index.js",
+	"directories": {
+		"test": "test"
+	},
+	"scripts": {
+		"test": "",
+		"test:palettes": "node test/load_palettes.js",
+		"test:pck": "node test/load_pck.js"
+	},
+	"author": "",
+	"license": "MIT",
+	"dependencies": {
+		"canvas": "^2.11.2"
+	}
+}
