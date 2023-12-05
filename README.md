@@ -7,3 +7,26 @@ Progress:
  - TFTD palettes loading except for tactical, which appear scrambled
  - PCK loader appears to successfully unpack sprite data
  - TAB files may be correct?  Still unclear what exactly they do.
+ - Export unit to sprite sheet works
+ - Export terrain to sprite sheet appears to be incomplete data?
+
+Usage
+`npm install`
+`npm run export:palettes` Export palettes to PNG files
+`npm run export:terrain` Export terrain PCK files to PNG sprite sheets
+`npm run export:units` Export unit PCK data to PNG sprite sheets
+
+References
+X-Com File Formats (UfoPaedia.org)
+[PCK File Format](https://www.ufopaedia.org/index.php/Image_Formats#PCK)
+[Palette Format](https://www.ufopaedia.org/index.php/PALETTES.DAT)
+
+Canvas API
+
+[HTML Canvas](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/canvas)
+[ImageData](https://developer.mozilla.org/en-US/docs/Web/API/ImageData)
+
+Dependencies
+
+[canvas module](https://github.com/Automattic/node-canvas) for Node.js
+ is used to generate PNG files.  No release build is currently available for ARM based Macs, so it must be built from source (see node-canvas readme)

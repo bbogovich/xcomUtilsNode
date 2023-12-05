@@ -226,9 +226,6 @@ export class Palettes {
 				imageArray[offset++] = 255;
 			}
 		}
-		for (let i = 0; i < imageArray.length; i++){
-			//console.log(imageArray[i]);
-		}
 		const imageData = canvas.createImageData(imageArray, nWidth);
 		const oCanvas = canvas.createCanvas(nWidth, nHeight);
 		const ctx = oCanvas.getContext('2d')

@@ -1,3 +1,6 @@
+import { rejects } from "assert";
+import * as canvas from "canvas";
+
 import * as fs from 'fs';
 import { resolve } from 'path';
 
@@ -7,7 +10,7 @@ export const gameType = {
 	TFTD: "TFTD",
 	UFO: "UFO"
 }
-export const fileType = {
+export const pckFileType = {
 	TERRAIN: "TERRAIN",
 	UFOGRAPH: "UFOGRAPH",
 	UNITS: "UNITS"
@@ -21,6 +24,7 @@ export class PckFile extends File {
 			palette: [],
 			fileName: ""
 		}, _oSettings);
+		this.sprites = [];
 		this.gameType = oSettings.gameType;
 		this.fileType = oSettings.fileType;
 		this.palette = oSettings.palette;
@@ -28,27 +32,61 @@ export class PckFile extends File {
 		this.images = [];
 		this.imageOffsets = [];
 		this.tabBytes = 2;
+		this.spriteSheetRows = 0;
+		this.spriteSheetCols = 16;
 		if (oSettings.gameType === "TFTD" && oSettings.fileType === "UNITS"){
 			this.tabBytes = 4;
 		}
 	}
+	/**
+	 * @typedef sprite
+	 * @proeprty {int} index - index of the sprite in the PCK file
+	 * @property {byte[]} rawData array of image data as bytes representing palette entries
+	 * @property {ImageData} imageData Canvas image data object
+	 *
+	 * @returns
+	 *
+	 * @memberOf PckFile
+	 */
+	/**
+	 * Loads the PCK file and unpacks its contents into sprite data
+	 *
+	 * @returns
+	 *
+	 * @memberOf PckFile
+	 */
 	async loadPck(){
 		let nCount = 0;
 		let sPckPath = this.gameType + "/" + this.fileType + "/" + this.fileName + ".PCK";
 		let fd = await this.openFile(sPckPath);
 		let fileStats = await this.getFileProperties(sPckPath);
 		console.log(fileStats);
-		let totalBytes = fileStats.size;
-		let bytesRead = 0;
+		let nTotalBytes = fileStats.size;
+		let nOffset = 0;
+		let nIndex = 0;
+		let nSpriteSheetRow = 0, nSpriteSheetCol = 0;
 		this.sprites = [];
-		while (bytesRead < totalBytes){
-			console.log(`Sprite ${nCount++}`);
-			let { imageData, bytes } = await this.loadNextSprite(fd);
-
-			this.logPck(imageData);
-			this.sprites.push(imageData);
-			bytesRead += bytes;
+		while (nOffset < nTotalBytes){
+			let { rawData, imageData, bytes } = await this.readNextSprite(fd);
+			//this.logPck(rawData);
+			this.sprites.push({
+				index: nIndex++,
+				rawData: rawData,
+				imageData: imageData,
+				offset: nOffset,
+				spriteSheetRow: nSpriteSheetRow,
+				spriteSheetCol: nSpriteSheetCol
+			});
+			nSpriteSheetCol += 1;
+			if (nSpriteSheetCol > this.spriteSheetCols){
+				nSpriteSheetRow++;
+				nSpriteSheetCol = 0;
+			}
+			nOffset += bytes;
 		}
+		this.spriteSheetRows = nSpriteSheetRow + 1;
+		this.spriteSheetCols = nSpriteSheetCol + 1;
+		return this.sprites;
 	}
 	/**
 	 * Promise loadSpritePromise
@@ -64,9 +102,9 @@ export class PckFile extends File {
 	 *
 	 * @memberOf PckFile
 	 */
-	async loadNextSprite(fd){
+	async readNextSprite(fd){
 		let totalBytes = 0;
-		let imageData = [];
+		let rawData = [];
 		//sprites are 32x40
 		//each byte in the file represents an index in the corresponding pallete
 		//buffer is width*height bytes; actual size is always smaller but guarantees enough room
@@ -88,7 +126,7 @@ export class PckFile extends File {
 			});
 		});
 		for (let i = 0; i < nSkipRows * 32; i++){
-			imageData.push(0);
+			rawData.push(0);
 		}
 		while (!bDone){
 			await new Promise((resolve, reject)=>{
@@ -99,7 +137,7 @@ export class PckFile extends File {
 						fs.read(fd, { buffer: buffer, offset: 0, length: 1, position: null }, (err2, bytes2)=>{
 							totalBytes += bytes2;
 							for (let i = 0; i < buffer[0]; i++){
-								imageData.push(0);
+								rawData.push(0);
 							}
 							resolve();
 						});
@@ -107,17 +145,88 @@ export class PckFile extends File {
 						bDone = true;
 						resolve();
 					} else {
-						imageData.push(buffer[0]);
+						rawData.push(buffer[0]);
 						resolve();
 					}
 				});
 			});
 		}
-		return { imageData: imageData, bytes: totalBytes };
+		let imageArray =  new Uint8ClampedArray(32 * 40 *4);
+		for (let i = 0, nOffset = 0; i < rawData.length; i++){
+			let nRawPixel = rawData[i];
+			let r = 0, g = 0, b = 0, a = 0;
+			let nColor = this.palette[nRawPixel];
+			if (nRawPixel > 0){
+				imageArray[nOffset++] = (nColor >> 16) & 0xFF;
+				imageArray[nOffset++] = (nColor >> 8) & 0xFF;
+				imageArray[nOffset++] = nColor & 0xFF;
+				imageArray[nOffset++] = 255;
+			} else {
+				imageArray[nOffset++] = 0;
+				imageArray[nOffset++] = 0;
+				imageArray[nOffset++] = 0;
+				imageArray[nOffset++] = 0;
+			}
+		}
+		let imageData = canvas.createImageData(imageArray, 32);
+		return { imageData: imageData, rawData: rawData, bytes: totalBytes };
 	}
-	logPck(aData){
+	/**
+	 * Exports a single sprite from the PCK file to a PNG
+	 *
+	 * @param {any} sFileName name of export file
+	 * @param {any} nIndex Index of the sprite to export
+	 * @returns
+	 *
+	 * @memberOf PckFile
+	 */
+	async exportSprite(sFileName, nIndex){
+		console.log(`Export sprite ${nIndex} to ${sFileName}`);
+		const oCanvas = canvas.createCanvas(32, 40);
+		const ctx = oCanvas.getContext("2d");
+		ctx.putImageData(this.sprites[nIndex].imageData, 0, 0);
+		const out = fs.createWriteStream(sFileName);
+		const stream = oCanvas.createPNGStream();
+		stream.pipe(out);
+		return new Promise((resolve, reject)=>{
+			out.on("finish", ()=>{
+				console.log(`PNG file ${sFileName} created`)
+				resolve();
+			})
+		})
+	}
+	/**
+	 * Exports a sprite sheet PNG for the current PCK file
+	 *
+	 * @param {any} sFilename name of exported file
+	 * @returns {Promise} promise resolved on finish
+	 *
+	 * @memberOf PckFile
+	 */
+	async exportSpriteSheet(sFilename){
+		console.log(`Export spritesheet to ${sFilename}`);
+		let nWidth = this.spriteSheetRows * 40,
+			nHeight = this.spriteSheetCols * 32;
+		const oCanvas = canvas.createCanvas(nWidth, nHeight);
+		const ctx = oCanvas.getContext('2d')
+		this.sprites.forEach((oSprite)=>{
+			ctx.putImageData(oSprite.imageData, oSprite.spriteSheetCol * 32, oSprite.spriteSheetRow * 40);
+		});
+		const out = fs.createWriteStream(sFilename);
+		const stream = oCanvas.createPNGStream();
+		stream.pipe(out);
+		return new Promise((resolve, reject)=>{
+			out.on('finish', () =>  {
+				console.log(`Export spritesheet to ${sFilename} finished`);
+				resolve();
+			});
+		});
+	}
+	logPck(oSprite){
 		//console.log(JSON.stringify(aData));
+		console.log(`Sprite ${oSprite.index} Offset ${oSprite.offset.toString(16)}`);
 		var nIndex = 0;
+		let aData = oSprite.rawData;
 		for (let nRow = 0; nRow < 40; nRow++){
 			let sRow = "";
 
@@ -160,13 +269,16 @@ export class PckFile extends File {
 						return;
 					}
 					let offset = (offsetBuffer[0] << 8) | offsetBuffer[1];
-					console.log(`offset: ${Number(offset).toString(16)}`);
+					//console.log(`offset: ${Number(offset).toString(16)}`);
 					this.imageOffsets.push(offset);
 					bytesRead += bytes;
 					resolve();
 				})
 			})
 		}
-
+	}
+	async load(){
+		await this.loadTab();
+		await this.loadPck();
 	}
 }
