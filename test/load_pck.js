@@ -31,19 +31,30 @@ let avengerPck = new PckFile({
 	fileType: "TERRAIN",
 	palette: ufoPalettes.tacticalPalettes[0]
 });
-await avengerPck.loadTab();
-await avengerPck.loadPck();
+await avengerPck.load();
 await avengerPck.exportSpriteSheet(`${process.cwd()}/exports/ufo/terrain/avenger.png`);
 let sectoidPck = new PckFile({
 	fileName: "SECTOID",
 	fileType: "UNITS",
 	palette: ufoPalettes.tacticalPalettes[0]
 });
-await sectoidPck.loadTab();
-await sectoidPck.loadPck();
+await sectoidPck.load();
 sectoidPck.sprites.forEach(async (oSprite, i)=>{
 	sectoidPck.logPck(oSprite);
 	//await sectoidPck.exportSprite(`${process.cwd()}/exports/ufo/units/sectoid_${oSprite.offset.toString(16)}.png`, i);
 });
 await sectoidPck.exportSpriteSheet(`${process.cwd()}/exports/ufo/units/sectoid.png`);
 console.log("yay");
+
+//look up entries based on the tab file
+//todo: why does this only find three?
+sectoidPck.tabIndex.forEach(async (nTabIndex, i)=>{
+	console.log(nTabIndex.toString(16));
+	for (let i = 0; i < sectoidPck.sprites.length; i++){
+		let oSprite = sectoidPck.sprites[i];
+		if (oSprite.offset === nTabIndex){
+			console.log("found");
+				await sectoidPck.exportSprite(`${process.cwd()}/exports/ufo/units/sectoid_tab_${nTabIndex}.png`, i);
+		}
+	}
+});

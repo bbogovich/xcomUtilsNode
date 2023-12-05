@@ -8,7 +8,7 @@
 		"test": "test"
 	},
 	"scripts": {
-		"test": "",
+		"export:ufo": "node src/xcom/exportSprites.js",
 		"test:palettes": "node test/load_palettes.js",
 		"test:pck": "node test/load_pck.js"
 	},

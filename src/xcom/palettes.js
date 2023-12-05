@@ -142,7 +142,7 @@ export class Palettes {
 				nColor |= Number(colorBuffer[1]) * 4;
 				nColor = nColor << 8;
 				nColor |= Number(colorBuffer[2]) * 4;
-				console.log(nColor.toString(16));
+				//console.log(nColor.toString(16));
 				resolve(nColor);
 			})
 		});

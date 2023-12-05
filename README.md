@@ -11,9 +11,8 @@ Node.js utility scripts for XCom/TFTD
 
 ## Usage
  - `npm install`
- - `npm run export:palettes` Export palettes to PNG files
- - `npm run export:terrain` Export terrain PCK files to PNG sprite sheets
- - `npm run export:units` Export unit PCK data to PNG sprite sheets
+ - `npm run test:palettes` Export palettes to PNG files
+ - `npm run export:ufo` Export PCK files to PNG sprite sheets
 
 ## References
 X-Com File Formats (UfoPaedia.org)

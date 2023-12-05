@@ -24,18 +24,72 @@ export class PckFile extends File {
 			palette: [],
 			fileName: ""
 		}, _oSettings);
+		if (oSettings.fileName.endsWith(".PCK")){
+			oSettings.tabFileName = oSettings.fileName.replace(".PCK", ".TAB");
+		} else {
+			oSettings.tabFileName = oSettings.fileName + ".TAB";
+			oSettings.fileName = oSettings.fileName + ".PCK";
+		}
 		this.sprites = [];
 		this.gameType = oSettings.gameType;
 		this.fileType = oSettings.fileType;
 		this.palette = oSettings.palette;
 		this.fileName = oSettings.fileName;
+		this.tabFileName = oSettings.tabFileName;
 		this.images = [];
-		this.imageOffsets = [];
+		this.tabExists = false;
+		this.tabIndex = [];
 		this.tabBytes = 2;
+		this.mcdExists = false;
 		this.spriteSheetRows = 0;
-		this.spriteSheetCols = 16;
+		this.spriteSheetCols = 8;
+		this.spriteWidth = 32
+		this.spriteHeight = 40;
+		this.valid = true;
 		if (oSettings.gameType === "TFTD" && oSettings.fileType === "UNITS"){
 			this.tabBytes = 4;
+		}
+		if (this.fileType === "TERRAIN"){
+			this.spriteWidth = 32
+			this.spriteHeight = 40;
+		} else if (this.fileType === "UNITS"){
+			if (this.fileName === "BIGOBS"){
+				this.spriteWidth = 32;
+				this.spriteHeight = 48;
+			} else {
+				this.spriteWidth = 32
+				this.spriteHeight = 40;
+			}
+		} else if (this.fileType === "UFOGRAPH"){
+			if (["DETBORD.PCK", "DETBORD2.PCK", "MEDIBORD.PCK", "SCANBORD.PCK", "UNIBORD.PCK"].includes(this.fileName)){
+				console.log(`${this.fileName} is really a SPK file`);
+				this.valid = false;
+			} else if (this.fileName === "ICONS.PCK") {
+				console.log(`${this.fileName} is really a SPK file`);
+				this.spriteWidth = 320;
+				this.spriteHeight = 200;
+			} else if (this.fileName === "INTICONS.PCK") {
+				this.spriteWidth = 24;
+				this.spriteHeight = 24;
+			} else if (this.fileName.startsWith("BIGOB")){
+				this.spriteWidth = 32;
+				this.spriteHeight = 48;
+			} else if (this.fileName === "X1.PCK"){
+				this.spriteWidth = 128;
+				this.spriteHeight = 64;
+			} else {
+				this.spriteWidth = 32
+				this.spriteHeight = 40;
+			}
+		} else if (this.fileType === "GEOGRAPH"){
+			if (this.fileName === "BASEBITS.PCK"){
+				//this file has inconsistent sprite sizes
+				this.spriteWidth = 32
+				this.spriteHeight = 40;
+			} else if (this.fileName === "INTICONS.PCK") {
+				this.spriteWidth = 24;
+				this.spriteHeight = 25;
+			}
 		}
 	}
 	/**
@@ -57,10 +111,9 @@ export class PckFile extends File {
 	 */
 	async loadPck(){
 		let nCount = 0;
-		let sPckPath = this.gameType + "/" + this.fileType + "/" + this.fileName + ".PCK";
+		let sPckPath = this.gameType + "/" + this.fileType + "/" + this.fileName;
 		let fd = await this.openFile(sPckPath);
 		let fileStats = await this.getFileProperties(sPckPath);
-		console.log(fileStats);
 		let nTotalBytes = fileStats.size;
 		let nOffset = 0;
 		let nIndex = 0;
@@ -78,14 +131,13 @@ export class PckFile extends File {
 				spriteSheetCol: nSpriteSheetCol
 			});
 			nSpriteSheetCol += 1;
-			if (nSpriteSheetCol > this.spriteSheetCols){
+			if (nSpriteSheetCol >= this.spriteSheetCols){
 				nSpriteSheetRow++;
 				nSpriteSheetCol = 0;
 			}
 			nOffset += bytes;
 		}
 		this.spriteSheetRows = nSpriteSheetRow + 1;
-		this.spriteSheetCols = nSpriteSheetCol + 1;
 		return this.sprites;
 	}
 	/**
@@ -105,7 +157,6 @@ export class PckFile extends File {
 	async readNextSprite(fd){
 		let totalBytes = 0;
 		let rawData = [];
-		//sprites are 32x40
 		//each byte in the file represents an index in the corresponding pallete
 		//buffer is width*height bytes; actual size is always smaller but guarantees enough room
 		const buffer = new Buffer.alloc(1);
@@ -125,7 +176,7 @@ export class PckFile extends File {
 				totalBytes += bytes;
 			});
 		});
-		for (let i = 0; i < nSkipRows * 32; i++){
+		for (let i = 0; i < nSkipRows * this.spriteWidth; i++){
 			rawData.push(0);
 		}
 		while (!bDone){
@@ -151,7 +202,7 @@ export class PckFile extends File {
 				});
 			});
 		}
-		let imageArray =  new Uint8ClampedArray(32 * 40 *4);
+		let imageArray =  new Uint8ClampedArray(this.spriteWidth * this.spriteHeight * 4);
 		for (let i = 0, nOffset = 0; i < rawData.length; i++){
 			let nRawPixel = rawData[i];
 			let r = 0, g = 0, b = 0, a = 0;
@@ -168,7 +219,7 @@ export class PckFile extends File {
 				imageArray[nOffset++] = 0;
 			}
 		}
-		let imageData = canvas.createImageData(imageArray, 32);
+		let imageData = canvas.createImageData(imageArray, this.spriteWidth);
 		return { imageData: imageData, rawData: rawData, bytes: totalBytes };
 	}
 	/**
@@ -182,7 +233,7 @@ export class PckFile extends File {
 	 */
 	async exportSprite(sFileName, nIndex){
 		console.log(`Export sprite ${nIndex} to ${sFileName}`);
-		const oCanvas = canvas.createCanvas(32, 40);
+		const oCanvas = canvas.createCanvas(this.spriteWidth, this.spriteHeight);
 		const ctx = oCanvas.getContext("2d");
 		ctx.putImageData(this.sprites[nIndex].imageData, 0, 0);
 		const out = fs.createWriteStream(sFileName);
@@ -204,13 +255,12 @@ export class PckFile extends File {
 	 * @memberOf PckFile
 	 */
 	async exportSpriteSheet(sFilename){
-		console.log(`Export spritesheet to ${sFilename}`);
-		let nWidth = this.spriteSheetRows * 40,
-			nHeight = this.spriteSheetCols * 32;
+		let nWidth = this.spriteSheetCols * this.spriteWidth,
+			nHeight = this.spriteSheetRows * this.spriteHeight;
 		const oCanvas = canvas.createCanvas(nWidth, nHeight);
 		const ctx = oCanvas.getContext('2d')
 		this.sprites.forEach((oSprite)=>{
-			ctx.putImageData(oSprite.imageData, oSprite.spriteSheetCol * 32, oSprite.spriteSheetRow * 40);
+			ctx.putImageData(oSprite.imageData, oSprite.spriteSheetCol * this.spriteWidth, oSprite.spriteSheetRow * this.spriteHeight);
 		});
 		const out = fs.createWriteStream(sFilename);
 		const stream = oCanvas.createPNGStream();
@@ -227,10 +277,10 @@ export class PckFile extends File {
 		console.log(`Sprite ${oSprite.index} Offset ${oSprite.offset.toString(16)}`);
 		var nIndex = 0;
 		let aData = oSprite.rawData;
-		for (let nRow = 0; nRow < 40; nRow++){
+		for (let nRow = 0; nRow < this.spriteHeight; nRow++){
 			let sRow = "";
 
-			for (let nCol = 0; nCol < 32; nCol++){
+			for (let nCol = 0; nCol < this.spriteWidth; nCol++){
 				if (nIndex < aData.length){
 					if (aData[nIndex] === 0){
 						sRow += "  "
@@ -252,11 +302,14 @@ export class PckFile extends File {
 		console.log("");
 	}
 	async loadTab(){
-		let sTabPath = this.gameType + "/" + this.fileType + "/" + this.fileName + ".TAB";
+		let sTabPath = this.gameType + "/" + this.fileType + "/" + this.tabFileName;
 		console.log(`reading tab file ${sTabPath}`)
+		if (!fs.existsSync(sTabPath)){
+			return;
+		}
+		this.tabExists = true;
 		let fd = await this.openFile(sTabPath);
 		let fileStats = await this.getFileProperties(sTabPath);
-		console.log(fileStats);
 		let totalBytes = fileStats.size;
 		let bytesRead = 0;
 		const offsetBuffer = new Buffer.alloc(this.tabBytes);
@@ -270,12 +323,13 @@ export class PckFile extends File {
 					}
 					let offset = (offsetBuffer[0] << 8) | offsetBuffer[1];
 					//console.log(`offset: ${Number(offset).toString(16)}`);
-					this.imageOffsets.push(offset);
+					this.tabIndex.push(offset);
 					bytesRead += bytes;
 					resolve();
 				})
 			})
 		}
+		console.log(JSON.stringify(this.tabIndex.map((nOffset)=>{return nOffset.toString(16)})))
 	}
 	async load(){
 		await this.loadTab();
