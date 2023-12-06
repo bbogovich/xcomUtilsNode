@@ -1,9 +1,6 @@
-import { rejects } from "assert";
+/* global Buffer */
 import * as canvas from "canvas";
-
 import * as fs from 'fs';
-import { resolve } from 'path';
-
 import { File } from "./file.js";
 
 export const gameType = {
@@ -21,8 +18,9 @@ export class PckFile extends File {
 		let oSettings = Object.assign({
 			gameType: "UFO",
 			fileType: "TERRAIN",
-			palette: [],
-			fileName: ""
+			palettes: [],
+			fileName: "",
+			tacticalPaletteIndex: 0
 		}, _oSettings);
 		if (oSettings.fileName.endsWith(".PCK")){
 			oSettings.tabFileName = oSettings.fileName.replace(".PCK", ".TAB");
@@ -33,7 +31,9 @@ export class PckFile extends File {
 		this.sprites = [];
 		this.gameType = oSettings.gameType;
 		this.fileType = oSettings.fileType;
-		this.palette = oSettings.palette;
+		this.palettes = oSettings.palettes;
+		this.palette = [];
+		this.tacticalPaletteIndex = oSettings.tacticalPaletteIndex;
 		this.fileName = oSettings.fileName;
 		this.tabFileName = oSettings.tabFileName;
 		this.images = [];
@@ -50,9 +50,11 @@ export class PckFile extends File {
 			this.tabBytes = 4;
 		}
 		if (this.fileType === "TERRAIN"){
+			this.palette = this.palettes.tacticalPalettes[this.tacticalPaletteIndex];
 			this.spriteWidth = 32
 			this.spriteHeight = 40;
 		} else if (this.fileType === "UNITS"){
+			this.palette = this.palettes.tacticalPalettes[this.tacticalPaletteIndex];
 			if (this.fileName === "BIGOBS"){
 				this.spriteWidth = 32;
 				this.spriteHeight = 48;
@@ -61,6 +63,7 @@ export class PckFile extends File {
 				this.spriteHeight = 40;
 			}
 		} else if (this.fileType === "UFOGRAPH"){
+			this.palette = this.palettes.tacticalPalettes[this.tacticalPaletteIndex];
 			if (["DETBORD.PCK", "DETBORD2.PCK", "MEDIBORD.PCK", "SCANBORD.PCK", "UNIBORD.PCK"].includes(this.fileName)){
 				console.log(`${this.fileName} is really a SPK file`);
 				this.valid = false;
@@ -69,6 +72,7 @@ export class PckFile extends File {
 				this.spriteWidth = 320;
 				this.spriteHeight = 200;
 			} else if (this.fileName === "INTICONS.PCK") {
+				this.palette = this.palettes.geoscapePalette;
 				this.spriteWidth = 24;
 				this.spriteHeight = 24;
 			} else if (this.fileName.startsWith("BIGOB")){
@@ -83,10 +87,12 @@ export class PckFile extends File {
 			}
 		} else if (this.fileType === "GEOGRAPH"){
 			if (this.fileName === "BASEBITS.PCK"){
+				this.palette = this.palettes.basePalette;
 				//this file has inconsistent sprite sizes
 				this.spriteWidth = 32
 				this.spriteHeight = 40;
 			} else if (this.fileName === "INTICONS.PCK") {
+				this.palette = this.palettes.geoscapePalette;
 				this.spriteWidth = 24;
 				this.spriteHeight = 25;
 			}
@@ -110,7 +116,6 @@ export class PckFile extends File {
 	 * @memberOf PckFile
 	 */
 	async loadPck(){
-		let nCount = 0;
 		let sPckPath = this.gameType + "/" + this.fileType + "/" + this.fileName;
 		let fd = await this.openFile(sPckPath);
 		let fileStats = await this.getFileProperties(sPckPath);
@@ -180,7 +185,7 @@ export class PckFile extends File {
 			rawData.push(0);
 		}
 		while (!bDone){
-			await new Promise((resolve, reject)=>{
+			await new Promise((resolve)=>{
 				//read next byte
 				fs.read(fd, { buffer: buffer, offset: 0, length: 1, position: null}, (err, bytes)=>{
 					totalBytes += bytes;
@@ -205,7 +210,6 @@ export class PckFile extends File {
 		let imageArray =  new Uint8ClampedArray(this.spriteWidth * this.spriteHeight * 4);
 		for (let i = 0, nOffset = 0; i < rawData.length; i++){
 			let nRawPixel = rawData[i];
-			let r = 0, g = 0, b = 0, a = 0;
 			let nColor = this.palette[nRawPixel];
 			if (nRawPixel > 0){
 				imageArray[nOffset++] = (nColor >> 16) & 0xFF;
@@ -239,7 +243,7 @@ export class PckFile extends File {
 		const out = fs.createWriteStream(sFileName);
 		const stream = oCanvas.createPNGStream();
 		stream.pipe(out);
-		return new Promise((resolve, reject)=>{
+		return new Promise((resolve)=>{
 			out.on("finish", ()=>{
 				console.log(`PNG file ${sFileName} created`)
 				resolve();
@@ -265,7 +269,7 @@ export class PckFile extends File {
 		const out = fs.createWriteStream(sFilename);
 		const stream = oCanvas.createPNGStream();
 		stream.pipe(out);
-		return new Promise((resolve, reject)=>{
+		return new Promise((resolve)=>{
 			out.on('finish', () =>  {
 				console.log(`Export spritesheet to ${sFilename} finished`);
 				resolve();

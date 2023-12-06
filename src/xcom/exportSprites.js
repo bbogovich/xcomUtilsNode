@@ -1,5 +1,6 @@
 import { Palettes } from "./palettes.js";
 import { PckFile } from "./pck.js";
+import { ScanG } from "./scang.js";
 import * as fs from 'fs';
 
 if (!fs.existsSync(`${process.cwd()}/exports`)){
@@ -19,6 +20,9 @@ if (!fs.existsSync(`${process.cwd()}/exports/ufo/units`)){
 }
 if (!fs.existsSync(`${process.cwd()}/exports/ufo/ufograph`)){
 	fs.mkdirSync(`${process.cwd()}/exports/ufo/ufograph`);
+}
+if (!fs.existsSync(`${process.cwd()}/exports/ufo/geodata`)){
+	fs.mkdirSync(`${process.cwd()}/exports/ufo/geodata`);
 }
 if (!fs.existsSync(`${process.cwd()}/exports/ufo/geograph`)){
 	fs.mkdirSync(`${process.cwd()}/exports/ufo/geograph`);
@@ -45,7 +49,7 @@ aFiles.forEach(async (sFilename)=>{
 		let oPck = new PckFile({
 			fileName: sFilename,
 			fileType: "TERRAIN",
-			palette: ufoPalettes.tacticalPalettes[0]
+			palettes: ufoPalettes
 		});
 		await oPck.load();
 		oPck.sprites.forEach((oSprite)=>{oPck.logPck(oSprite)})
@@ -60,7 +64,7 @@ aFiles.forEach(async (sFilename)=>{
 		let oPck = new PckFile({
 			fileName: sFilename,
 			fileType: "UFOGRAPH",
-			palette: ufoPalettes.tacticalPalettes[0]
+			palettes: ufoPalettes
 		});
 		await oPck.load();
 		if (oPck.valid){
@@ -74,7 +78,7 @@ aFiles.forEach(async (sFilename)=>{
 let oPck = new PckFile({
 	fileName: "BASEBITS.PCK",
 	fileType: "GEOGRAPH",
-	palette: ufoPalettes.basePalette
+	palettes: ufoPalettes
 });
 await oPck.load();
 if (oPck.valid){
@@ -85,7 +89,7 @@ if (oPck.valid){
  oPck = new PckFile({
 	fileName: "INTICON.PCK",
 	fileType: "GEOGRAPH",
-	palette: ufoPalettes.geoscapePalette
+	palettes: ufoPalettes
 });
 await oPck.load();
 if (oPck.valid){
@@ -99,10 +103,14 @@ aFiles.forEach(async (sFilename)=>{
 		let oPck = new PckFile({
 			fileName: sFilename,
 			fileType: "UNITS",
-			palette: ufoPalettes.tacticalPalettes[0]
+			palettes: ufoPalettes
 		});
 		await oPck.load();
 		oPck.sprites.forEach((oSprite)=>{oPck.logPck(oSprite)})
 		await oPck.exportSpriteSheet(`${process.cwd()}/exports/ufo/units/${sFilename}.png`);
 	}
 });
+
+let oScanG = new ScanG("UFO/GEODATA/SCANG.DAT", ufoPalettes);
+await oScanG.loadData();
+await oScanG.exportPNG(`${process.cwd()}/exports/ufo/geodata/SCANG.DAT.png`)

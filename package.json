@@ -10,11 +10,15 @@
 	"scripts": {
 		"export:ufo": "node src/xcom/exportSprites.js",
 		"test:palettes": "node test/load_palettes.js",
-		"test:pck": "node test/load_pck.js"
+		"test:pck": "node test/load_pck.js",
+		"test:scang": "node test/load_scang.js"
 	},
 	"author": "",
 	"license": "MIT",
 	"dependencies": {
 		"canvas": "^2.11.2"
+	},
+	"devDependencies": {
+		"eslint": "^8.55.0"
 	}
 }
