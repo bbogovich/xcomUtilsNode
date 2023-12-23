@@ -12,41 +12,71 @@ export const pckFileType = {
 	UFOGRAPH: "UFOGRAPH",
 	UNITS: "UNITS"
 }
+/**
+ * Utility class to load, import, export, and save PCK files
+ *
+ * @export
+ * @class PckFile
+ * @extends {File}
+ * @property fileName {string} name of PCK file
+ * @property gameType {string} UFO of TFTD
+ * @property fileType {string} TERRAIN|UNITS|UFOGRAPH
+ * @property palettes {Palettes} xcom palettes object
+ * @property tacticalPaletteIndex {int} For units or terrain, index of the tactical palette to apply
+ * @property images {ImageData[]} array of image data for the sprites
+ * @property tabExists {boolean} true if tab file is present
+ * @property tabIndex {int[]} array of 2-4 byte indexes in the TAB file
+ * @property tabBytes {int} number of bytes per entry in the tab file
+ * @property spriteSheetRows {int} (read only) number of rows in the exported sprite sheet
+ * @property spriteSheetCols {int} number of columns to use when generating a sprite sheet
+ * @property spriteWidth {int} (read only) width of sprites in the PCK file
+ * @property spriteHeight {int} (read only) height of sprites in the PCK file
+ * @property valid {boolean} if false, the specified file is not a PCK file (usually it's a SPK)
+ */
 export class PckFile extends File {
+
+	/**
+	 * @typedef PckFileSettings
+	 * @property {string} gameType UFO | TFTD
+	 * @property {string} fileType
+	 * @property {Palettes}
+	 * @memberOf PckFile
+	 */
+	/**
+	 * Creates an instance of PckFile.
+	 * @param {PckFilesettings} _oSettings
+	 *
+	 * @memberOf PckFile
+	 */
 	constructor(_oSettings){
 		super()
-		let oSettings = Object.assign({
+		Object.assign(this, {
 			gameType: "UFO",
 			fileType: "TERRAIN",
 			palettes: [],
+			palette: null,
 			fileName: "",
-			tacticalPaletteIndex: 0
+			tacticalPaletteIndex: 0,
+			pckPath: "",  //full path to pck file
+			tabPath: "",   //full path to tab file,
+			images: [],
+			tabExists: false,
+			tabIndex: [],
+			tabBytes: 2,
+			mcdExists: false,
+			spriteSheetRows: 0,
+			spriteSheetCols: 8,
+			spriteWidth: 32,
+			spriteHeight: 40,
+			valid: true
 		}, _oSettings);
-		if (oSettings.fileName.endsWith(".PCK")){
-			oSettings.tabFileName = oSettings.fileName.replace(".PCK", ".TAB");
-		} else {
-			oSettings.tabFileName = oSettings.fileName + ".TAB";
-			oSettings.fileName = oSettings.fileName + ".PCK";
+		let aFileSplits = this.pckPath.split("/");
+		this.fileName = aFileSplits[aFileSplits.length - 1];
+		this.fileRoot = this.fileName.replace(/\.PCK$/, "");
+		if (!this.palette){
+			this.palette = this.palettes.tacticalPalettes[0];
 		}
-		this.sprites = [];
-		this.gameType = oSettings.gameType;
-		this.fileType = oSettings.fileType;
-		this.palettes = oSettings.palettes;
-		this.palette = [];
-		this.tacticalPaletteIndex = oSettings.tacticalPaletteIndex;
-		this.fileName = oSettings.fileName;
-		this.tabFileName = oSettings.tabFileName;
-		this.images = [];
-		this.tabExists = false;
-		this.tabIndex = [];
-		this.tabBytes = 2;
-		this.mcdExists = false;
-		this.spriteSheetRows = 0;
-		this.spriteSheetCols = 8;
-		this.spriteWidth = 32
-		this.spriteHeight = 40;
-		this.valid = true;
-		if (oSettings.gameType === "TFTD" && oSettings.fileType === "UNITS"){
+		if (this.gameType === "TFTD" && this.fileType === "UNITS"){
 			this.tabBytes = 4;
 		}
 		if (this.fileType === "TERRAIN"){
@@ -55,7 +85,7 @@ export class PckFile extends File {
 			this.spriteHeight = 40;
 		} else if (this.fileType === "UNITS"){
 			this.palette = this.palettes.tacticalPalettes[this.tacticalPaletteIndex];
-			if (this.fileName === "BIGOBS"){
+			if (this.fileName === "BIGOBS.PCK"){
 				this.spriteWidth = 32;
 				this.spriteHeight = 48;
 			} else {
@@ -63,7 +93,9 @@ export class PckFile extends File {
 				this.spriteHeight = 40;
 			}
 		} else if (this.fileType === "UFOGRAPH"){
-			this.palette = this.palettes.tacticalPalettes[this.tacticalPaletteIndex];
+			if (this.palette === null){
+				this.palette = this.palettes.tacticalPalettes[this.tacticalPaletteIndex];
+			}
 			if (["DETBORD.PCK", "DETBORD2.PCK", "MEDIBORD.PCK", "SCANBORD.PCK", "UNIBORD.PCK"].includes(this.fileName)){
 				console.log(`${this.fileName} is really a SPK file`);
 				this.valid = false;
@@ -87,12 +119,16 @@ export class PckFile extends File {
 			}
 		} else if (this.fileType === "GEOGRAPH"){
 			if (this.fileName === "BASEBITS.PCK"){
-				this.palette = this.palettes.basePalette;
+				if (this.palette === null){
+					this.palette = this.palettes.basePalette;
+				}
 				//this file has inconsistent sprite sizes
 				this.spriteWidth = 32
 				this.spriteHeight = 40;
 			} else if (this.fileName === "INTICONS.PCK") {
-				this.palette = this.palettes.geoscapePalette;
+				if (this.palette === null){
+					this.palette = this.palettes.geoscapePalette;
+				}
 				this.spriteWidth = 24;
 				this.spriteHeight = 25;
 			}
@@ -116,15 +152,26 @@ export class PckFile extends File {
 	 * @memberOf PckFile
 	 */
 	async loadPck(){
-		let sPckPath = this.gameType + "/" + this.fileType + "/" + this.fileName;
-		let fd = await this.openFile(sPckPath);
-		let fileStats = await this.getFileProperties(sPckPath);
+		//let sPckPath = this.gameType + "/" + this.fileType + "/" + this.fileName;
+		//let sPckPath = this.pckPath;
+		if (!fs.existsSync(this.pckPath)){
+			this.valid = false;
+			this.pckExists = false;
+			console.error(`PCK file ${this.pckPath} does not exist`)
+			throw new Error(`PCK file ${this.pckPath} does not exist`)
+		}
+		console.log(`Reading PCK file ${this.pckPath}`)
+		let fd = await this.openFile(this.pckPath);
+		let fileStats = await this.getFileProperties(this.pckPath);
 		let nTotalBytes = fileStats.size;
 		let nOffset = 0;
 		let nIndex = 0;
 		let nSpriteSheetRow = 0, nSpriteSheetCol = 0;
 		this.sprites = [];
 		while (nOffset < nTotalBytes){
+			//the TAB file corresponding to the PCK represents the sprite offset
+			//as a two byte record with the low byte first.
+			let nTabnOffset = nOffset >> 8 | (nOffset << 8 & 0xFF00);
 			let { rawData, imageData, bytes } = await this.readNextSprite(fd);
 			//this.logPck(rawData);
 			this.sprites.push({
@@ -132,6 +179,7 @@ export class PckFile extends File {
 				rawData: rawData,
 				imageData: imageData,
 				offset: nOffset,
+				tabOffset: nTabnOffset,
 				spriteSheetRow: nSpriteSheetRow,
 				spriteSheetCol: nSpriteSheetCol
 			});
@@ -306,11 +354,14 @@ export class PckFile extends File {
 		console.log("");
 	}
 	async loadTab(){
-		let sTabPath = this.gameType + "/" + this.fileType + "/" + this.tabFileName;
-		console.log(`reading tab file ${sTabPath}`)
+		//let sTabPath = this.gameType + "/" + this.fileType + "/" + this.tabFileName;
+		let sTabPath = this.tabPath;
 		if (!fs.existsSync(sTabPath)){
+			console.log(`Tab file ${sTabPath} not found`)
+			this.tabExists = false;
 			return;
 		}
+		console.log(`reading tab file ${sTabPath}`)
 		this.tabExists = true;
 		let fd = await this.openFile(sTabPath);
 		let fileStats = await this.getFileProperties(sTabPath);
@@ -333,10 +384,41 @@ export class PckFile extends File {
 				})
 			})
 		}
-		console.log(JSON.stringify(this.tabIndex.map((nOffset)=>{return nOffset.toString(16)})))
+		//console.log(JSON.stringify(this.tabIndex.map((nOffset)=>{return nOffset.toString(16)})))
 	}
 	async load(){
 		await this.loadTab();
 		await this.loadPck();
+	}
+	async exportPckJSON(sExportFileName){
+		var oExportObject = {
+			name: this.fileRoot,
+			sprites: this.sprites.map((oSprite)=>{
+				return {
+					index: oSprite.index,
+					offset: oSprite.nOffset,
+					tabOffset: oSprite.tabOffset,
+					spriteSheetRow: oSprite.spriteSheetRow,
+					spriteSheetCol: oSprite.spriteSheetCol
+				}
+			})
+		};
+		try {
+			fs.writeFileSync(sExportFileName, JSON.stringify(oExportObject));
+		} catch (err) {
+			console.error(err);
+		}
+
+	}
+	async exportTabJSON(sExportFileName){
+		let oExportObject = {
+			name: this.fileRoot,
+			index: this.tabIndex
+		};
+		try {
+			fs.writeFileSync(sExportFileName, JSON.stringify(oExportObject));
+		} catch (err) {
+			console.error(err);
+		}
 	}
 }

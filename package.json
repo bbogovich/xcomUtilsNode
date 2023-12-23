@@ -8,15 +8,19 @@
 		"test": "test"
 	},
 	"scripts": {
-		"export:ufo": "node src/xcom/exportSprites.js",
+		"export:ufo": "node test/exportSprites.js",
 		"test:palettes": "node test/load_palettes.js",
 		"test:pck": "node test/load_pck.js",
-		"test:scang": "node test/load_scang.js"
+		"test:scang": "node test/load_scang.js",
+		"test:mcdview:prep": "node test/mcdview/mcdview.js",
+		"test:mcdview": "node test/mcdview/mcdview.js & npx serve -l 8080 ./exports/mcdview & npx open http://localhost:8080/"
 	},
 	"author": "",
 	"license": "MIT",
 	"dependencies": {
-		"canvas": "^2.11.2"
+		"canvas": "^2.11.2",
+		"open": "^9.1.0",
+		"serve": "^14.2.1"
 	},
 	"devDependencies": {
 		"eslint": "^8.55.0"

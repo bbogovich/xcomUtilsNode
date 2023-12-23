@@ -21,9 +21,10 @@ export class File {
 				if (err) {
 					console.error(err);
 					reject();
+					return;
 				}
 				resolve(fd);
-				console.log("Reading the file");
+				//console.log("Reading the file");
 			});
 		})
 	}
